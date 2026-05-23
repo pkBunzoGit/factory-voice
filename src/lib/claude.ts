@@ -12,8 +12,8 @@ export function getClaudeClient(): Anthropic {
 }
 
 export const MODELS = {
-  brain: "claude-sonnet-4-20250514",
-  chat: "claude-3-5-haiku-20241022",
+  brain: "claude-sonnet-4-6",
+  chat: "claude-haiku-4-5-20251001",
 } as const;
 
 export const CHAT_CONFIG = {
