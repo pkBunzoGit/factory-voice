@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -264,7 +265,11 @@ export function ChatClient({ slug }: { slug: string }) {
                   : "bg-white text-gray-800 border border-gray-200 rounded-bl-md"
               }`}
             >
-              {m.content || (
+              {m.content ? (
+                <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ul]:ml-4 [&>ol]:my-1 [&>ol]:ml-4 [&_li]:my-0.5 [&_strong]:font-semibold">
+                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                </div>
+              ) : (
                 <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
               )}
             </div>

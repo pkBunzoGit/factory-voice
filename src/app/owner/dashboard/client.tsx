@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TextArea } from "@/components/ui/textarea";
@@ -312,7 +313,9 @@ export function OwnerDashboardClient({
                           <p className="text-xs font-medium mb-1 opacity-60">
                             {m.role === "user" ? "Customer" : "AI Bot"}
                           </p>
-                          {m.content}
+                          <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ul]:ml-4 [&>ol]:my-1 [&>ol]:ml-4 [&_li]:my-0.5 [&_strong]:font-semibold">
+                            <ReactMarkdown>{m.content}</ReactMarkdown>
+                          </div>
                         </div>
                       </div>
                     ))
