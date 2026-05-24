@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -266,8 +267,36 @@ export function ChatClient({ slug }: { slug: string }) {
               }`}
             >
               {m.content ? (
-                <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ul]:ml-4 [&>ol]:my-1 [&>ol]:ml-4 [&_li]:my-0.5 [&_strong]:font-semibold">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ul]:ml-4 [&>ol]:my-1 [&>ol]:ml-4 [&_li]:my-0.5 [&_strong]:font-semibold [&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_table]:my-2 [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium [&_th]:border [&_th]:border-gray-200 [&_td]:px-2 [&_td]:py-1 [&_td]:border [&_td]:border-gray-200 [&_hr]:my-2 [&_hr]:border-gray-200">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      img: ({ src, alt }) => {
+                        const imgSrc = typeof src === "string" ? src : undefined;
+                        return (
+                          <span className="block mt-2">
+                            <img
+                              src={imgSrc}
+                              alt={alt || ""}
+                              className="rounded-lg max-w-full mt-1 cursor-pointer border border-gray-200"
+                              style={{ minHeight: "80px", maxHeight: "300px", objectFit: "contain" }}
+                              onClick={() => imgSrc && window.open(imgSrc, "_blank")}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                            {alt && (
+                              <span className="block text-xs text-gray-400 mt-1">
+                                {alt} — tap to view full size
+                              </span>
+                            )}
+                          </span>
+                        );
+                      },
+                    }}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
                 </div>
               ) : (
                 <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />

@@ -58,3 +58,33 @@ export interface ChatMessage {
   content: string;
   created_at: string;
 }
+
+export interface Product {
+  id: string;
+  factory_id: string;
+  category: string;
+  sub_category: string | null;
+  name: string;
+  size_spec: string | null;
+  unit_price: number | null;
+  price_unit: string | null;
+  created_at: string;
+}
+
+export interface ComboItem {
+  name: string;
+  qty: number;
+  unit_price: number;
+  total: number;
+}
+
+export interface ComboSolution {
+  id: string;
+  factory_id: string;
+  name: string;
+  tags: Record<string, string>;
+  items: ComboItem[];
+  grand_total: number | null;
+  image_url: string | null;
+  created_at: string;
+}

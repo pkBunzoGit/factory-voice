@@ -53,18 +53,21 @@ export async function POST(
       content: message,
     });
 
-    // Load recent chat history
+    // Load most recent chat history (descending to get latest, then reverse for chronological order)
     const { data: history } = await supabase
       .from("chat_messages")
       .select("role, content")
       .eq("session_id", sessionId)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(CHAT_CONFIG.maxHistoryMessages);
 
-    const messages = (history || []).map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    const messages = (history || [])
+      .reverse()
+      .filter((m) => m.content && m.content.trim())
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
 
     // Stream response from Claude
     const claude = getClaudeClient();
@@ -97,23 +100,29 @@ export async function POST(
             }
           }
 
-          // Save full assistant message
-          await supabase.from("chat_messages").insert({
-            session_id: sessionId,
-            role: "assistant",
-            content: fullResponse,
-          });
+          // Save full assistant message (only if non-empty)
+          if (fullResponse.trim()) {
+            await supabase.from("chat_messages").insert({
+              session_id: sessionId,
+              role: "assistant",
+              content: fullResponse,
+            });
+          }
 
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (err) {
           console.error("Stream error:", err);
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ error: "Stream failed" })}\n\n`
-            )
-          );
-          controller.close();
+          try {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ error: "Stream failed" })}\n\n`
+              )
+            );
+            controller.close();
+          } catch {
+            // controller already closed
+          }
         }
       },
     });

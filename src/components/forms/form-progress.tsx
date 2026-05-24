@@ -2,8 +2,8 @@
 
 const STEPS = [
   "Business Basics",
-  "Products",
-  "Pricing",
+  "Product Catalog",
+  "Combo Solutions",
   "Customers",
   "Lead Time",
   "Contact Info",

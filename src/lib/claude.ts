@@ -17,7 +17,7 @@ export const MODELS = {
 } as const;
 
 export const CHAT_CONFIG = {
-  maxTokens: 400,
+  maxTokens: 800,
   temperature: 0.4,
   maxHistoryMessages: 10,
 } as const;

@@ -87,10 +87,12 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists factories_updated_at on factories;
 create trigger factories_updated_at
   before update on factories
   for each row execute function update_updated_at();
 
+drop trigger if exists factory_profiles_updated_at on factory_profiles;
 create trigger factory_profiles_updated_at
   before update on factory_profiles
   for each row execute function update_updated_at();
@@ -104,30 +106,35 @@ alter table chat_sessions enable row level security;
 alter table chat_messages enable row level security;
 
 -- Public read for active factories (chat page needs this)
+drop policy if exists "Anyone can read active factories by slug" on factories;
 create policy "Anyone can read active factories by slug"
   on factories for select
   using (is_active = true);
 
 -- Service role bypasses RLS for agent and admin operations.
 -- Owner policies: owners can only see their own factory data.
+drop policy if exists "Owners read own factory" on factories;
 create policy "Owners read own factory"
   on factories for select
   using (
     id in (select factory_id from owners where id = auth.uid())
   );
 
+drop policy if exists "Owners read own leads" on leads;
 create policy "Owners read own leads"
   on leads for select
   using (
     factory_id in (select factory_id from owners where id = auth.uid())
   );
 
+drop policy if exists "Owners read own chat sessions" on chat_sessions;
 create policy "Owners read own chat sessions"
   on chat_sessions for select
   using (
     factory_id in (select factory_id from owners where id = auth.uid())
   );
 
+drop policy if exists "Owners read own chat messages" on chat_messages;
 create policy "Owners read own chat messages"
   on chat_messages for select
   using (
@@ -138,12 +145,14 @@ create policy "Owners read own chat messages"
     )
   );
 
+drop policy if exists "Owners read own factory profiles" on factory_profiles;
 create policy "Owners read own factory profiles"
   on factory_profiles for select
   using (
     factory_id in (select factory_id from owners where id = auth.uid())
   );
 
+drop policy if exists "Owners update own factory profiles" on factory_profiles;
 create policy "Owners update own factory profiles"
   on factory_profiles for update
   using (
@@ -151,18 +160,22 @@ create policy "Owners update own factory profiles"
   );
 
 -- Public insert for leads and chat (buyer interactions — no auth)
+drop policy if exists "Public can create leads" on leads;
 create policy "Public can create leads"
   on leads for insert
   with check (true);
 
+drop policy if exists "Public can create chat sessions" on chat_sessions;
 create policy "Public can create chat sessions"
   on chat_sessions for insert
   with check (true);
 
+drop policy if exists "Public can insert chat messages" on chat_messages;
 create policy "Public can insert chat messages"
   on chat_messages for insert
   with check (true);
 
+drop policy if exists "Public can read own session messages" on chat_messages;
 create policy "Public can read own session messages"
   on chat_messages for select
   using (true);

@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Sample {
   question: string;
@@ -13,6 +16,7 @@ const CHECKLIST_ITEMS = [
   { task: "Create client record in Agent App and fill Sections 1 to 6", group: "Data Collection" },
   { task: "Hit 'Generate Bot Profile' — wait for AI to build brain", group: "Data Collection" },
   { task: "Read 3 sample replies out loud to the owner for approval", group: "Data Collection" },
+  { task: "Create owner login account (see above)", group: "Owner Setup" },
   { task: "Ask owner to open WhatsApp Business on their phone", group: "Link Setup" },
   { task: "Go to Settings → Greeting Message / Away Message", group: "Link Setup" },
   { task: "Type the greeting and paste the unique FactoryVoice link", group: "Link Setup" },
@@ -33,9 +37,17 @@ export function GenerateClient({ factoryId }: { factoryId: string }) {
   const [approved, setApproved] = useState(false);
   const [chatSlug, setChatSlug] = useState("");
   const [error, setError] = useState("");
-  const [checklist, setChecklist] = useState<boolean[]>(new Array(11).fill(false));
+  const [checklist, setChecklist] = useState<boolean[]>(new Array(CHECKLIST_ITEMS.length).fill(false));
   const [completing, setCompleting] = useState(false);
   const [visitComplete, setVisitComplete] = useState(false);
+
+  // Owner account creation
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPin, setOwnerPin] = useState("");
+  const [creatingOwner, setCreatingOwner] = useState(false);
+  const [ownerCreated, setOwnerCreated] = useState(false);
+  const [ownerError, setOwnerError] = useState("");
 
   async function handleGenerate() {
     setGenerating(true);
@@ -186,7 +198,31 @@ export function GenerateClient({ factoryId }: { factoryId: string }) {
                   </p>
                 </div>
                 <div className="px-5 py-3">
-                  <p className="text-sm text-gray-700">{s.answer}</p>
+                  <div className="prose prose-sm max-w-none text-gray-700 [&>p]:m-0 [&>p]:mb-2 [&>ul]:my-1 [&>ul]:ml-4 [&>ol]:my-1 [&>ol]:ml-4 [&_li]:my-0.5 [&_strong]:font-semibold [&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_table]:my-2 [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium [&_th]:border [&_th]:border-gray-200 [&_td]:px-2 [&_td]:py-1 [&_td]:border [&_td]:border-gray-200 [&_hr]:my-2 [&_hr]:border-gray-200">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        img: ({ src, alt }) => {
+                          const imgSrc = typeof src === "string" ? src : undefined;
+                          return (
+                            <span className="block mt-2">
+                              <img
+                                src={imgSrc}
+                                alt={alt || ""}
+                                className="rounded-lg max-w-full mt-1 border border-gray-200"
+                                style={{ minHeight: "80px", maxHeight: "300px", objectFit: "contain" }}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = "none";
+                                }}
+                              />
+                            </span>
+                          );
+                        },
+                      }}
+                    >
+                      {s.answer}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             ))}
@@ -209,7 +245,7 @@ export function GenerateClient({ factoryId }: { factoryId: string }) {
           </div>
         )}
 
-        {/* Approved — Show Chat Link + Checklist */}
+        {/* Approved — Show Chat Link + Owner Account + Checklist */}
         {approved && !visitComplete && (
           <div className="space-y-6">
             <div className="bg-green-50 border border-green-200 rounded-xl p-6 space-y-4">
@@ -218,7 +254,7 @@ export function GenerateClient({ factoryId }: { factoryId: string }) {
                   Bot is Live!
                 </h3>
                 <p className="text-sm text-green-700 mt-1">
-                  Now complete the setup checklist below.
+                  Now create the owner account and complete the setup checklist.
                 </p>
               </div>
 
@@ -241,12 +277,106 @@ export function GenerateClient({ factoryId }: { factoryId: string }) {
               </div>
             </div>
 
+            {/* Owner Account Setup */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+                <h3 className="text-sm font-medium">Owner Account Setup</h3>
+              </div>
+              <div className="px-5 py-4">
+                {ownerCreated ? (
+                  <div className="bg-green-50 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium text-green-800">
+                      Owner account created successfully!
+                    </p>
+                    <div className="text-sm text-green-700 space-y-1">
+                      <p>Email: <span className="font-mono">{ownerEmail}</span></p>
+                      <p>PIN: <span className="font-mono">{ownerPin}</span></p>
+                    </div>
+                    <p className="text-xs text-green-600 mt-2">
+                      Share these credentials with the owner so they can log in to the dashboard.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-500">
+                      Create a login for the factory owner so they can manage their dashboard.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Input
+                        label="Owner Name"
+                        placeholder="Mr. Sharma"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                      />
+                      <Input
+                        label="Email"
+                        placeholder="owner@company.com"
+                        type="email"
+                        value={ownerEmail}
+                        onChange={(e) => setOwnerEmail(e.target.value)}
+                        required
+                      />
+                      <Input
+                        label="PIN (min 4 chars)"
+                        placeholder="123456"
+                        type="text"
+                        value={ownerPin}
+                        onChange={(e) => setOwnerPin(e.target.value)}
+                        required
+                      />
+                    </div>
+                    {ownerError && (
+                      <p className="text-xs text-red-600">{ownerError}</p>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (!ownerEmail || !ownerPin) {
+                          setOwnerError("Email and PIN are required");
+                          return;
+                        }
+                        setCreatingOwner(true);
+                        setOwnerError("");
+                        try {
+                          const res = await fetch(
+                            `/api/factory/${factoryId}/create-owner`,
+                            {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                name: ownerName,
+                                email: ownerEmail,
+                                pin: ownerPin,
+                              }),
+                            }
+                          );
+                          const data = await res.json();
+                          if (!res.ok) {
+                            setOwnerError(data.error || "Failed to create");
+                          } else {
+                            setOwnerCreated(true);
+                          }
+                        } catch {
+                          setOwnerError("Network error");
+                        } finally {
+                          setCreatingOwner(false);
+                        }
+                      }}
+                      loading={creatingOwner}
+                    >
+                      Create Owner Account
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Visit Checklist */}
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
                 <h3 className="text-sm font-medium">
-                  Visit Checklist — {checklist.filter(Boolean).length}/11
-                  completed
+                  Visit Checklist — {checklist.filter(Boolean).length}/{CHECKLIST_ITEMS.length}
+                  {" "}completed
                 </h3>
               </div>
               <div className="px-5 py-4 space-y-1">
@@ -298,13 +428,13 @@ export function GenerateClient({ factoryId }: { factoryId: string }) {
               }}
               loading={completing}
               className="w-full"
-              disabled={checklist.filter(Boolean).length < 7}
+              disabled={checklist.filter(Boolean).length < 8}
             >
               Mark Visit Complete
             </Button>
-            {checklist.filter(Boolean).length < 7 && (
+            {checklist.filter(Boolean).length < 8 && (
               <p className="text-xs text-gray-400 text-center">
-                Complete at least 7 checklist items to finish the visit
+                Complete at least 8 checklist items to finish the visit
               </p>
             )}
           </div>

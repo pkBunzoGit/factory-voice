@@ -6,30 +6,31 @@ import { Button } from "@/components/ui/button";
 import { FormProgress } from "@/components/forms/form-progress";
 import {
   BusinessBasicsForm,
-  ProductsForm,
-  PricingForm,
   CustomersForm,
   LeadTimeForm,
   ContactInfoForm,
 } from "@/components/forms/section-forms";
+import { ProductCatalogForm } from "@/components/forms/product-catalog-form";
+import { ComboSolutionsForm } from "@/components/forms/combo-solutions-form";
 
 const SECTION_KEYS = [
   "business_basics",
-  "products",
-  "pricing",
+  "product_catalog",
+  "combo_solutions",
   "customers",
   "lead_time",
   "contact_info",
 ];
 
-const SECTION_FORMS = [
-  BusinessBasicsForm,
-  ProductsForm,
-  PricingForm,
-  CustomersForm,
-  LeadTimeForm,
-  ContactInfoForm,
-];
+const PROFILE_SECTION_FORMS: Record<
+  string,
+  React.ComponentType<{ data: Record<string, string>; onChange: (key: string, value: string) => void }>
+> = {
+  business_basics: BusinessBasicsForm,
+  customers: CustomersForm,
+  lead_time: LeadTimeForm,
+  contact_info: ContactInfoForm,
+};
 
 export function VisitClient({ factoryId }: { factoryId: string }) {
   const router = useRouter();
@@ -83,7 +84,13 @@ export function VisitClient({ factoryId }: { factoryId: string }) {
     [currentSectionKey]
   );
 
+  const isStandaloneStep =
+    currentSectionKey === "product_catalog" ||
+    currentSectionKey === "combo_solutions";
+
   async function saveCurrentSection() {
+    if (isStandaloneStep) return true;
+
     setSaving(true);
     setSaveStatus("");
 
@@ -138,7 +145,7 @@ export function VisitClient({ factoryId }: { factoryId: string }) {
     }
   }
 
-  const CurrentForm = SECTION_FORMS[currentStep];
+  const ProfileForm = PROFILE_SECTION_FORMS[currentSectionKey];
   const isLastStep = currentStep === SECTION_KEYS.length - 1;
 
   if (loading) {
@@ -178,7 +185,13 @@ export function VisitClient({ factoryId }: { factoryId: string }) {
         />
 
         <div className="bg-white rounded-xl border border-gray-200 p-5 sm:p-6">
-          <CurrentForm data={currentData} onChange={handleFieldChange} />
+          {currentSectionKey === "product_catalog" ? (
+            <ProductCatalogForm factoryId={factoryId} />
+          ) : currentSectionKey === "combo_solutions" ? (
+            <ComboSolutionsForm factoryId={factoryId} />
+          ) : ProfileForm ? (
+            <ProfileForm data={currentData} onChange={handleFieldChange} />
+          ) : null}
 
           <div className="flex items-center justify-between mt-8 pt-4 border-t border-gray-100">
             <div className="flex items-center gap-3">
@@ -200,14 +213,16 @@ export function VisitClient({ factoryId }: { factoryId: string }) {
             </div>
 
             <div className="flex gap-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={saveCurrentSection}
-                loading={saving}
-              >
-                Save
-              </Button>
+              {!isStandaloneStep && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={saveCurrentSection}
+                  loading={saving}
+                >
+                  Save
+                </Button>
+              )}
               <Button size="sm" onClick={handleNext} loading={saving}>
                 {isLastStep ? "Generate Bot Profile" : "Next"}
               </Button>
