@@ -12,19 +12,19 @@ export async function GET() {
     const supabase = createServiceClient();
 
     const { data, error } = await supabase
-      .from("products")
+      .from("locations")
       .select("*")
       .eq("factory_id", owner.factoryId)
-      .order("category")
-      .order("name");
+      .order("location_type")
+      .order("city");
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ products: data || [] });
+    return NextResponse.json({ locations: data || [] });
   } catch {
-    return NextResponse.json({ error: "Failed to load products" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load locations" }, { status: 500 });
   }
 }
 
@@ -35,31 +35,28 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { products } = await request.json();
+    const { locations } = await request.json();
 
-    if (!Array.isArray(products)) {
-      return NextResponse.json({ error: "products must be an array" }, { status: 400 });
+    if (!Array.isArray(locations)) {
+      return NextResponse.json({ error: "locations must be an array" }, { status: 400 });
     }
 
     const supabase = createServiceClient();
     const factoryId = owner.factoryId;
 
-    await supabase.from("products").delete().eq("factory_id", factoryId);
+    await supabase.from("locations").delete().eq("factory_id", factoryId);
 
-    if (products.length > 0) {
-      const rows = products.map((p: Record<string, unknown>) => ({
+    if (locations.length > 0) {
+      const rows = locations.map((l: Record<string, unknown>) => ({
         factory_id: factoryId,
-        category: p.category || "",
-        sub_category: p.sub_category || null,
-        name: p.name || "",
-        size_spec: p.size_spec || null,
-        unit_price: p.unit_price || null,
-        price_unit: p.price_unit || null,
-        tags: p.tags || {},
-        image_url: p.image_url || null,
+        name: l.name || "",
+        city: l.city || "",
+        area: l.area || null,
+        phone: l.phone || null,
+        location_type: l.location_type || "distributor",
       }));
 
-      const { error } = await supabase.from("products").insert(rows);
+      const { error } = await supabase.from("locations").insert(rows);
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -67,6 +64,6 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Failed to save products" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to save locations" }, { status: 500 });
   }
 }

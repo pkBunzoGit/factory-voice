@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOwnerFromCookie } from "@/lib/auth";
 import { getClaudeClient, MODELS } from "@/lib/claude";
+import { MULTILINGUAL_INSTRUCTION } from "@/lib/language";
 
 export async function GET() {
   try {
@@ -14,7 +15,7 @@ export async function GET() {
 
     const { data: factory } = await supabase
       .from("factories")
-      .select("id, name, city, slug, is_active")
+      .select("id, name, city, slug, is_active, logo_url, brand_colors")
       .eq("id", owner.factoryId)
       .single();
 
@@ -114,6 +115,10 @@ export async function PUT(request: NextRequest) {
                   if (p.size_spec) line += ` — ${p.size_spec}`;
                   if (p.unit_price != null) line += ` — ${p.unit_price}`;
                   if (p.price_unit) line += ` ${p.price_unit}`;
+                  const tags = p.tags as Record<string, string> | null;
+                  if (tags && Object.keys(tags).length > 0) {
+                    line += "\n    Details: " + Object.entries(tags).map(([k, v]) => `${k}: ${v}`).join(" | ");
+                  }
                   return line;
                 })
                 .join("\n")
@@ -152,6 +157,42 @@ export async function PUT(request: NextRequest) {
             .join("\n");
       }
 
+      // Fetch locations
+      const { data: locations } = await supabase
+        .from("locations")
+        .select("*")
+        .eq("factory_id", owner.factoryId)
+        .order("location_type")
+        .order("city");
+
+      let locationsSection = "";
+      if (locations && locations.length > 0) {
+        locationsSection = "\n\nDISTRIBUTOR & STORE LOCATIONS:\n" +
+          locations.map((l) => {
+            let line = `- ${l.name} (${l.location_type}) — ${l.city}`;
+            if (l.area) line += `, ${l.area}`;
+            if (l.phone) line += ` — Phone: ${l.phone}`;
+            return line;
+          }).join("\n");
+      }
+
+      // Fetch competitive advantages
+      const { data: compReport } = await supabase
+        .from("competitive_reports")
+        .select("report_data")
+        .eq("factory_id", owner.factoryId)
+        .single();
+
+      let competitiveSection = "";
+      if (compReport?.report_data) {
+        const r = compReport.report_data as Record<string, unknown>;
+        const advantages = r.advantages as string[] | undefined;
+        if (advantages && advantages.length > 0) {
+          competitiveSection = "\n\nCOMPETITIVE ADVANTAGES (use these when customer compares or asks why choose us):\n" +
+            advantages.map((a) => `- ${a}`).join("\n");
+        }
+      }
+
       const claude = getClaudeClient();
 
       const response = await claude.messages.create({
@@ -166,24 +207,25 @@ The system prompt should:
 - State the business name, location, and what they do
 - Include product details with exact prices from the product catalog — use the correct local currency based on the business location
 - Include combo/package/bundle details with all items and totals
-- When a customer asks about a combo/package, instruct the bot to include the image using markdown: ![Package Name](image_url)
+- When a customer mentions or asks about any combo/package, always include the image using markdown: ![Package Name](image_url)
 - Include lead times and capacity info
 - Mention the owner's name for escalation
 - Tell the bot to never make up prices — only share what was provided
 - Tell the bot to ask the customer to contact the owner directly for exact quotes, custom work, or anything not covered
 
 CRITICAL — ENGAGEMENT & SALES BEHAVIOR:
-The bot must NEVER let a conversation die. After every answer, the bot must:
-- End with a relevant follow-up question to keep the customer talking
+The bot must NEVER let a conversation die. After every answer, the bot should:
 - Proactively suggest related products or combos the customer might need
 - Ask about the customer's use case or requirements to recommend the right product — tailor questions to the business domain
 - If the customer seems interested in one product, cross-sell complementary items or suggest a complete package
 - If the customer goes quiet or says "ok/thanks", re-engage by highlighting a bundled package or a popular product they might have missed
 - Act like a knowledgeable, friendly salesperson — not a boring FAQ bot
-- Keep responses short (2-4 sentences + a follow-up question), suitable for a chat interface
+- Not every response needs a follow-up question — when the customer says "thanks, will order tomorrow" or clearly wants to end, just close warmly without forcing a question
+
+${MULTILINGUAL_INSTRUCTION}
 
 Business Data:
-${profileSummary}${productCatalog}${comboSection}
+${profileSummary}${productCatalog}${comboSection}${locationsSection}${competitiveSection}
 
 Write ONLY the system prompt, nothing else.`,
           },
@@ -193,10 +235,34 @@ Write ONLY the system prompt, nothing else.`,
       const systemPrompt =
         response.content[0].type === "text" ? response.content[0].text : "";
 
+      // Generate a short welcome line describing what the business sells
+      const { data: factory } = await supabase
+        .from("factories")
+        .select("name, city")
+        .eq("id", owner.factoryId)
+        .single();
+
+      const welcomeResponse = await claude.messages.create({
+        model: MODELS.chat,
+        max_tokens: 100,
+        messages: [
+          {
+            role: "user",
+            content: `Based on this business data, write a single short sentence (max 15 words) describing what this business makes or sells. No quotes, no business name, just what they offer. Use very simple English.\n\nBusiness: ${factory?.name || ""}, ${factory?.city || ""}\n${profileSummary}${productCatalog}${locationsSection}\n\nExamples of good output:\n- We make drip irrigation systems, pipes, fittings, and complete farm packages.\n- We manufacture steel doors, gates, and window frames.\n- We supply building materials — cement, sand, and hardware.\n\nWrite ONLY the one sentence, nothing else.`,
+          },
+        ],
+      });
+
+      const welcomeLine =
+        welcomeResponse.content[0].type === "text"
+          ? welcomeResponse.content[0].text.trim().replace(/^["']|["']$/g, "")
+          : "";
+
       await supabase
         .from("factories")
         .update({
           system_prompt: systemPrompt,
+          welcome_line: welcomeLine || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", owner.factoryId);

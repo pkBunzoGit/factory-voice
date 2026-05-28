@@ -68,6 +68,8 @@ export interface Product {
   size_spec: string | null;
   unit_price: number | null;
   price_unit: string | null;
+  image_url: string | null;
+  tags: Record<string, string>;
   created_at: string;
 }
 
@@ -76,6 +78,18 @@ export interface ComboItem {
   qty: number;
   unit_price: number;
   total: number;
+  image_url?: string;
+}
+
+export interface Location {
+  id: string;
+  factory_id: string;
+  name: string;
+  city: string;
+  area: string | null;
+  phone: string | null;
+  location_type: 'distributor' | 'store' | 'warehouse';
+  created_at: string;
 }
 
 export interface ComboSolution {

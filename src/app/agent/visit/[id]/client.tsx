@@ -12,6 +12,7 @@ import {
 } from "@/components/forms/section-forms";
 import { ProductCatalogForm } from "@/components/forms/product-catalog-form";
 import { ComboSolutionsForm } from "@/components/forms/combo-solutions-form";
+import { LocationsForm } from "@/components/forms/locations-form";
 
 const SECTION_KEYS = [
   "business_basics",
@@ -20,6 +21,7 @@ const SECTION_KEYS = [
   "customers",
   "lead_time",
   "contact_info",
+  "locations",
 ];
 
 const PROFILE_SECTION_FORMS: Record<
@@ -86,7 +88,8 @@ export function VisitClient({ factoryId }: { factoryId: string }) {
 
   const isStandaloneStep =
     currentSectionKey === "product_catalog" ||
-    currentSectionKey === "combo_solutions";
+    currentSectionKey === "combo_solutions" ||
+    currentSectionKey === "locations";
 
   async function saveCurrentSection() {
     if (isStandaloneStep) return true;
@@ -189,6 +192,8 @@ export function VisitClient({ factoryId }: { factoryId: string }) {
             <ProductCatalogForm factoryId={factoryId} />
           ) : currentSectionKey === "combo_solutions" ? (
             <ComboSolutionsForm factoryId={factoryId} />
+          ) : currentSectionKey === "locations" ? (
+            <LocationsForm factoryId={factoryId} />
           ) : ProfileForm ? (
             <ProfileForm data={currentData} onChange={handleFieldChange} />
           ) : null}

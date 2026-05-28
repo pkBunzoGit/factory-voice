@@ -21,18 +21,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const ALLOWED_BUCKETS = ["combo-images", "product-images", "factory-logos"];
+    const bucketParam = (formData.get("bucket") as string) || "combo-images";
+    if (!ALLOWED_BUCKETS.includes(bucketParam)) {
+      return NextResponse.json({ error: "Invalid bucket" }, { status: 400 });
+    }
+
+    // factory-logos maps to product-images bucket with a logos/ subfolder
+    const isLogo = bucketParam === "factory-logos";
+    const bucket = isLogo ? "product-images" : bucketParam;
+
     const supabase = createServiceClient();
     const ext = file.name.split(".").pop() || "png";
-    const path = `${factoryId}/${Date.now()}.${ext}`;
+    const path = isLogo
+      ? `${factoryId}/logos/logo.${ext}`
+      : `${factoryId}/${Date.now()}.${ext}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     const { error: uploadErr } = await supabase.storage
-      .from("combo-images")
+      .from(bucket)
       .upload(path, buffer, {
         contentType: file.type,
-        upsert: false,
+        upsert: isLogo,
       });
 
     if (uploadErr) {
@@ -40,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: urlData } = supabase.storage
-      .from("combo-images")
+      .from(bucket)
       .getPublicUrl(path);
 
     return NextResponse.json({ url: urlData.publicUrl });

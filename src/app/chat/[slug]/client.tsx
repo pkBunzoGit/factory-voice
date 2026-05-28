@@ -16,6 +16,7 @@ export function ChatClient({ slug }: { slug: string }) {
     id: string;
     name: string;
     city: string;
+    welcome_intro?: string;
   } | null>(null);
   const [phase, setPhase] = useState<"loading" | "lead" | "chat" | "error">(
     "loading"
@@ -70,10 +71,13 @@ export function ChatClient({ slug }: { slug: string }) {
       }
 
       setSessionId(data.session_id);
+      const intro = factory?.welcome_intro
+        ? `\n\n${factory.welcome_intro}`
+        : "";
       setMessages([
         {
           role: "assistant",
-          content: `Welcome to ${factory?.name}! How can I help you today? Ask me about our products, prices, or lead times.`,
+          content: `Welcome to ${factory?.name}!${intro}\n\nHow can I help you today?\n\nMwaiseni ku ${factory?.name}! Ndingakuthandizeni bwanji lero?`,
         },
       ]);
       setPhase("chat");
@@ -164,6 +168,42 @@ export function ChatClient({ slug }: { slug: string }) {
       setSending(false);
     }
   }
+
+  // After streaming completes, split ---Q--- into two bubbles with a delay
+  const prevSendingRef = useRef(false);
+  const pendingQuestionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const wasSending = prevSendingRef.current;
+    prevSendingRef.current = sending;
+
+    if (!wasSending || sending) return;
+
+    // Streaming just finished — check for delimiter in the last message
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (!last || last.role !== "assistant" || !last.content.includes("---Q---")) return prev;
+
+      const [mainPart, ...rest] = last.content.split("---Q---");
+      const questionPart = rest.join("---Q---").trim();
+      if (!questionPart) return prev;
+
+      pendingQuestionRef.current = questionPart;
+      const updated = [...prev];
+      updated[updated.length - 1] = { role: "assistant", content: mainPart.trim() };
+      return updated;
+    });
+
+    const timeoutId = setTimeout(() => {
+      const q = pendingQuestionRef.current;
+      if (q) {
+        setMessages((prev) => [...prev, { role: "assistant", content: q }]);
+        pendingQuestionRef.current = null;
+      }
+    }, 700);
+
+    return () => clearTimeout(timeoutId);
+  }, [sending]);
 
   // Loading state
   if (phase === "loading") {
@@ -295,7 +335,7 @@ export function ChatClient({ slug }: { slug: string }) {
                       },
                     }}
                   >
-                    {m.content}
+                    {m.content.split("---Q---")[0].trim()}
                   </ReactMarkdown>
                 </div>
               ) : (

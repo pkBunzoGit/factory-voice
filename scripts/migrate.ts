@@ -133,7 +133,11 @@ async function ensureStorageBuckets() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceKey) return;
 
-  const buckets = [{ id: "combo-images", public: true }];
+  const buckets = [
+    { id: "combo-images", public: true },
+    { id: "product-images", public: true },
+    { id: "factory-logos", public: true },
+  ];
 
   for (const bucket of buckets) {
     try {

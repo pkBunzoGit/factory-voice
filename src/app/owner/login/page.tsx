@@ -1,19 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function OwnerLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const doLogin = useCallback(async () => {
+    const email = emailRef.current?.value?.trim() || "";
+    const password = passRef.current?.value || "";
+
+    if (!email || !password) {
+      setError("Please enter both email and password");
+      return;
+    }
+
     setError("");
     setLoading(true);
 
@@ -24,19 +31,24 @@ export default function OwnerLoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error || "Login failed");
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "Invalid email or password");
+        setLoading(false);
         return;
       }
 
       router.push("/owner/dashboard");
     } catch {
       setError("Network error. Please try again.");
-    } finally {
       setLoading(false);
     }
+  }, [router]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    doLogin();
   }
 
   return (
@@ -49,35 +61,39 @@ export default function OwnerLoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} action="javascript:void(0)" className="space-y-4">
           <Input
+            ref={emailRef}
             label="Email"
             type="email"
             placeholder="you@company.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
             autoComplete="email"
           />
           <Input
+            ref={passRef}
             label="Password"
             type="password"
             placeholder="Your password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
             autoComplete="current-password"
           />
 
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          <Button type="submit" loading={loading} className="w-full">
+          <Button
+            type="button"
+            loading={loading}
+            className="w-full"
+            onClick={doLogin}
+          >
             Sign In
           </Button>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {error}
+            </div>
+          )}
         </form>
 
         <p className="text-center text-xs text-gray-400">

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getClaudeClient, MODELS, CHAT_CONFIG } from "@/lib/claude";
 import { chatMessageSchema } from "@/lib/validators";
+import { CHAT_STYLE_RULES } from "@/lib/language";
 
 export async function POST(
   request: NextRequest,
@@ -76,7 +77,7 @@ export async function POST(
       model: MODELS.chat,
       max_tokens: CHAT_CONFIG.maxTokens,
       temperature: CHAT_CONFIG.temperature,
-      system: factory.system_prompt,
+      system: factory.system_prompt + CHAT_STYLE_RULES,
       messages,
     });
 

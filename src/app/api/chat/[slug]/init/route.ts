@@ -11,7 +11,7 @@ export async function GET(
 
     const { data: factory, error } = await supabase
       .from("factories")
-      .select("id, name, city, slug, is_active")
+      .select("id, name, city, slug, is_active, welcome_line")
       .eq("slug", slug)
       .single();
 
@@ -27,7 +27,12 @@ export async function GET(
     }
 
     return NextResponse.json({
-      factory: { id: factory.id, name: factory.name, city: factory.city },
+      factory: {
+        id: factory.id,
+        name: factory.name,
+        city: factory.city,
+        welcome_intro: factory.welcome_line || "",
+      },
     });
   } catch {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

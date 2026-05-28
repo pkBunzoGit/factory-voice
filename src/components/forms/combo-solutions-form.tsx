@@ -253,12 +253,29 @@ export function ComboSolutionsForm({ factoryId }: Props) {
 
   function addTag(comboIndex: number) {
     const existing = Object.keys(combos[comboIndex].tags);
-    let key = "detail";
+    let key = "";
     let i = 1;
-    while (existing.includes(key)) {
-      key = `detail_${i++}`;
-    }
+    while (existing.includes(key)) key = `_new_${i++}`;
     updateTag(comboIndex, key, "");
+  }
+
+  async function uploadItemImage(comboIndex: number, itemIndex: number, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("factory_id", factoryId);
+    formData.append("bucket", "product-images");
+    try {
+      const res = await fetch("/api/upload/image", { method: "POST", body: formData });
+      if (!res.ok) return;
+      const { url } = await res.json();
+      setCombos((prev) => {
+        const updated = [...prev];
+        const items = [...updated[comboIndex].items];
+        items[itemIndex] = { ...items[itemIndex], image_url: url };
+        updated[comboIndex] = { ...updated[comboIndex], items };
+        return updated;
+      });
+    } catch {}
   }
 
   function updateItem(
@@ -270,9 +287,10 @@ export function ComboSolutionsForm({ factoryId }: Props) {
     setCombos((prev) => {
       const updated = [...prev];
       const items = [...updated[comboIndex].items];
+      const isStringField = field === "name" || field === "image_url";
       items[itemIndex] = {
         ...items[itemIndex],
-        [field]: field === "name" ? value : parseFloat(value) || 0,
+        [field]: isStringField ? value : parseFloat(value) || 0,
       };
       if (field === "qty" || field === "unit_price") {
         items[itemIndex].total = items[itemIndex].qty * items[itemIndex].unit_price;
@@ -385,12 +403,13 @@ export function ComboSolutionsForm({ factoryId }: Props) {
                         updateComboField(ci, "name", e.target.value)
                       }
                     />
-                    {Object.entries(combo.tags).map(([key, val]) => (
-                      <div key={key} className="flex items-end gap-2">
+                    {Object.entries(combo.tags).map(([key, val], tagIdx) => (
+                      <div key={tagIdx} className="flex items-end gap-2">
                         <div className="w-1/3">
                           <label className="block text-xs font-medium text-gray-500 mb-1">Label</label>
                           <input
                             className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
+                            placeholder="e.g. crop, spacing"
                             value={key}
                             onChange={(e) => renameTag(ci, key, e.target.value)}
                           />
@@ -399,6 +418,7 @@ export function ComboSolutionsForm({ factoryId }: Props) {
                           <label className="block text-xs font-medium text-gray-500 mb-1">Value</label>
                           <input
                             className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-900"
+                            placeholder="e.g. tomato, 30cm"
                             value={val}
                             onChange={(e) => updateTag(ci, key, e.target.value)}
                           />
@@ -415,9 +435,10 @@ export function ComboSolutionsForm({ factoryId }: Props) {
                     <button
                       type="button"
                       onClick={() => addTag(ci)}
-                      className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-xs text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      + Add Detail
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
+                      Add Detail
                     </button>
                   </div>
                 ) : (
@@ -478,6 +499,7 @@ export function ComboSolutionsForm({ factoryId }: Props) {
                       <th className="text-left py-1.5 px-1 font-medium w-24">
                         Total
                       </th>
+                      {isEditing && <th className="text-left py-1.5 px-1 font-medium w-20">Image</th>}
                       {isEditing && <th className="w-16"></th>}
                     </tr>
                   </thead>
@@ -542,6 +564,40 @@ export function ComboSolutionsForm({ factoryId }: Props) {
                             item.total
                           )}
                         </td>
+                        {isEditing ? (
+                          <td className="py-1 px-1">
+                            <div className="flex items-center gap-1.5">
+                              {item.image_url ? (
+                                <>
+                                  <img src={item.image_url} alt={item.name} className="w-8 h-8 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(item.image_url, "_blank")} />
+                                  <label className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
+                                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    Change
+                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) uploadItemImage(ci, ii, file);
+                                      e.target.value = "";
+                                    }} />
+                                  </label>
+                                </>
+                              ) : (
+                                <label className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-gray-300 text-[11px] text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                  Image
+                                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) uploadItemImage(ci, ii, file);
+                                    e.target.value = "";
+                                  }} />
+                                </label>
+                              )}
+                            </div>
+                          </td>
+                        ) : (
+                          <td className="py-1 px-1">
+                            {item.image_url && <img src={item.image_url} alt={item.name} className="w-8 h-8 object-cover rounded-md border border-gray-200" />}
+                          </td>
+                        )}
                         {isEditing && (
                           <td className="py-1 px-1 text-center">
                             <button
