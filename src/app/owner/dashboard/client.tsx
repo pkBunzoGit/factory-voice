@@ -52,6 +52,7 @@ type Tab = "leads" | "chat" | "products" | "combos" | "locations" | "competitors
 interface LeadRow {
   id: string;
   phone: string;
+  name: string | null;
   created_at: string;
   last_visit_at: string;
   message_count: number;
@@ -544,12 +545,15 @@ export function OwnerDashboardClient({
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-5 py-3 font-medium text-gray-600">
+                      Name
+                    </th>
+                    <th className="text-left px-5 py-3 font-medium text-gray-600 hidden sm:table-cell">
                       Phone
                     </th>
                     <th className="text-left px-5 py-3 font-medium text-gray-600 hidden sm:table-cell">
                       Last Visit
                     </th>
-                    <th className="text-left px-5 py-3 font-medium text-gray-600 hidden md:table-cell">
+                    <th className="text-left px-5 py-3 font-medium text-gray-600 hidden lg:table-cell">
                       Visits
                     </th>
                     <th className="text-left px-5 py-3 font-medium text-gray-600">
@@ -565,13 +569,18 @@ export function OwnerDashboardClient({
                       className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => loadChat(lead)}
                     >
-                      <td className="px-5 py-3 font-mono">{lead.phone}</td>
+                      <td className="px-5 py-3 font-medium text-gray-900">
+                        {lead.name || "—"}
+                      </td>
+                      <td className="px-5 py-3 font-mono text-gray-600 hidden sm:table-cell">
+                        {lead.phone}
+                      </td>
                       <td className="px-5 py-3 text-gray-500 hidden sm:table-cell">
                         {new Date(lead.last_visit_at || lead.created_at).toLocaleDateString("en-IN", {
                           day: "numeric", month: "short", year: "numeric",
                         })}
                       </td>
-                      <td className="px-5 py-3 text-gray-500 hidden md:table-cell">
+                      <td className="px-5 py-3 text-gray-500 hidden lg:table-cell">
                         {lead.session_count || 1}
                       </td>
                       <td className="px-5 py-3">{lead.message_count}</td>
@@ -617,7 +626,10 @@ export function OwnerDashboardClient({
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium">
-                        Chat with {selectedLead.phone}
+                        Chat with{" "}
+                        {selectedLead.name
+                          ? `${selectedLead.name} (${selectedLead.phone})`
+                          : selectedLead.phone}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {chatSessions.length} {chatSessions.length === 1 ? "visit" : "visits"}
@@ -3061,6 +3073,7 @@ function WishPostsTab({
 interface EngagementLead {
   id: string;
   phone: string;
+  name: string | null;
   first_contact: string;
   last_active: string | null;
   total_messages: number;
@@ -3080,6 +3093,7 @@ interface EngagementSummary {
 
 interface WeeklyLeadReport {
   phone: string;
+  name: string | null;
   tier: "hot" | "warm" | "cold";
   messages_this_week: number;
   sessions_this_week: number;
@@ -3321,7 +3335,14 @@ function LiveEngagement({ onViewChat }: { onViewChat: (leadId: string) => void }
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm font-medium">{lead.phone}</span>
+                        <span className="text-sm font-medium">
+                          {lead.name || lead.phone}
+                        </span>
+                        {lead.name && (
+                          <span className="font-mono text-xs text-gray-500">
+                            {lead.phone}
+                          </span>
+                        )}
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${style.badge}`}>
                           {style.label}
                         </span>
@@ -3568,8 +3589,13 @@ function WeeklyReportCard({
                 key={idx}
                 className={`${style.bg} border ${style.border} rounded-xl p-4`}
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-sm font-medium">{lead.phone}</span>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-sm font-medium">
+                    {lead.name || lead.phone}
+                  </span>
+                  {lead.name && (
+                    <span className="font-mono text-xs text-gray-500">{lead.phone}</span>
+                  )}
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${style.badge}`}>
                     {style.label}
                   </span>

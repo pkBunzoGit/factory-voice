@@ -95,6 +95,11 @@ export function normalizeZambiaPhone(raw: string): string | null {
 }
 
 export const leadCaptureSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter your name")
+    .max(100, "Name is too long"),
   phone: z
     .string()
     .trim()

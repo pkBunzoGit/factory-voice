@@ -28,6 +28,7 @@ function formatDate(d: Date): string {
 interface WeeklyReportData {
   leads: Array<{
     phone: string;
+    name: string | null;
     tier: "hot" | "warm" | "cold";
     messages_this_week: number;
     sessions_this_week: number;
@@ -58,7 +59,7 @@ async function generateWeeklyReport(
     .from("leads")
     .select(
       `
-      id, phone, created_at,
+      id, phone, name, created_at,
       chat_sessions (
         id, started_at,
         chat_messages ( id, role, content, created_at )
@@ -88,6 +89,7 @@ async function generateWeeklyReport(
   type LeadData = {
     id: string;
     phone: string;
+    name: string | null;
     created_at: string;
     chat_sessions: Array<{
       id: string;
@@ -103,14 +105,17 @@ async function generateWeeklyReport(
 
   const byPhone = new Map<string, LeadData>();
   for (const lead of leads as unknown as LeadData[]) {
+    const leadName =
+      typeof lead.name === "string" && lead.name.trim() ? lead.name.trim() : null;
     const existing = byPhone.get(lead.phone);
     if (!existing) {
-      byPhone.set(lead.phone, { ...lead });
+      byPhone.set(lead.phone, { ...lead, name: leadName });
     } else {
       existing.chat_sessions = [
         ...(existing.chat_sessions || []),
         ...(lead.chat_sessions || []),
       ];
+      if (leadName) existing.name = leadName;
       if (new Date(lead.created_at) < new Date(existing.created_at)) {
         existing.created_at = lead.created_at;
       }
@@ -122,6 +127,7 @@ async function generateWeeklyReport(
 
   const weeklyLeads: Array<{
     phone: string;
+    name: string | null;
     isNew: boolean;
     messagesThisWeek: number;
     sessionsThisWeek: number;
@@ -162,6 +168,7 @@ async function generateWeeklyReport(
 
     weeklyLeads.push({
       phone: lead.phone,
+      name: lead.name,
       isNew,
       messagesThisWeek: weekMessages.length,
       sessionsThisWeek: weekSessions.length,
@@ -214,7 +221,7 @@ async function generateWeeklyReport(
     const prompt = leadsForAI
       .map(
         (l, i) =>
-          `--- Lead ${i + 1} (${l.phone}, ${l.isNew ? "NEW" : "RETURNING"}, ${l.tier.toUpperCase()}, ${l.messagesThisWeek} msgs, ${l.sessionsThisWeek} visits) ---\n${conversationInputs[i]}`
+          `--- Lead ${i + 1} (${l.name || l.phone}, ${l.phone}, ${l.isNew ? "NEW" : "RETURNING"}, ${l.tier.toUpperCase()}, ${l.messagesThisWeek} msgs, ${l.sessionsThisWeek} visits) ---\n${conversationInputs[i]}`
       )
       .join("\n\n");
 
@@ -279,6 +286,7 @@ Return ONLY the JSON, no markdown fences.`,
   return {
     leads: weeklyLeads.map((l) => ({
       phone: l.phone,
+      name: l.name,
       tier: l.tier,
       messages_this_week: l.messagesThisWeek,
       sessions_this_week: l.sessionsThisWeek,

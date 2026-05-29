@@ -17,6 +17,7 @@ export async function GET() {
       .select(`
         id,
         phone,
+        name,
         created_at,
         chat_sessions (
           id,
@@ -33,15 +34,27 @@ export async function GET() {
 
     // Group by phone — same number may have multiple lead rows (legacy data)
     type SessionRow = { id: string; started_at: string; chat_messages: { id: string }[] };
-    const byPhone = new Map<string, { id: string; phone: string; created_at: string; sessions: SessionRow[] }>();
+    const byPhone = new Map<
+      string,
+      { id: string; phone: string; name: string | null; created_at: string; sessions: SessionRow[] }
+    >();
 
     for (const lead of leads || []) {
       const sessions = (lead.chat_sessions || []) as SessionRow[];
+      const leadName =
+        typeof lead.name === "string" && lead.name.trim() ? lead.name.trim() : null;
       const existing = byPhone.get(lead.phone);
       if (!existing) {
-        byPhone.set(lead.phone, { id: lead.id, phone: lead.phone, created_at: lead.created_at, sessions });
+        byPhone.set(lead.phone, {
+          id: lead.id,
+          phone: lead.phone,
+          name: leadName,
+          created_at: lead.created_at,
+          sessions,
+        });
       } else {
         existing.sessions.push(...sessions);
+        if (leadName) existing.name = leadName;
         if (new Date(lead.created_at) < new Date(existing.created_at)) {
           existing.created_at = lead.created_at;
         }
@@ -65,6 +78,7 @@ export async function GET() {
       return {
         id: lead.id,
         phone: lead.phone,
+        name: lead.name,
         created_at: lead.created_at,
         last_visit_at: lastVisitAt,
         message_count: messageCount,

@@ -22,6 +22,7 @@ interface SessionRow {
 interface LeadRow {
   id: string;
   phone: string;
+  name: string | null;
   created_at: string;
   chat_sessions: SessionRow[];
 }
@@ -29,6 +30,7 @@ interface LeadRow {
 interface ScoredLead {
   leadId: string;
   phone: string;
+  name: string | null;
   firstContact: string;
   lastActiveAt: string | null;
   totalMessages: number;
@@ -95,9 +97,13 @@ function computeEngagement(lead: LeadRow): ScoredLead {
     .map((m) => `${m.role === "user" ? "Customer" : "Bot"}: ${m.content}`)
     .join("\n");
 
+  const displayName =
+    typeof lead.name === "string" && lead.name.trim() ? lead.name.trim() : null;
+
   return {
     leadId: lead.id,
     phone: lead.phone,
+    name: displayName,
     firstContact: lead.created_at,
     lastActiveAt,
     totalMessages,
@@ -172,7 +178,7 @@ async function generateReport(factoryId: string) {
     .from("leads")
     .select(
       `
-      id, phone, created_at,
+      id, phone, name, created_at,
       chat_sessions (
         id, started_at,
         chat_messages ( id, role, content, created_at )
@@ -191,13 +197,16 @@ async function generateReport(factoryId: string) {
   const byPhone = new Map<string, LeadRow>();
   for (const lead of leads as unknown as LeadRow[]) {
     const existing = byPhone.get(lead.phone);
+    const leadName =
+      typeof lead.name === "string" && lead.name.trim() ? lead.name.trim() : null;
     if (!existing) {
-      byPhone.set(lead.phone, { ...lead });
+      byPhone.set(lead.phone, { ...lead, name: leadName });
     } else {
       existing.chat_sessions = [
         ...(existing.chat_sessions || []),
         ...(lead.chat_sessions || []),
       ];
+      if (leadName) existing.name = leadName;
       if (new Date(lead.created_at) < new Date(existing.created_at)) {
         existing.created_at = lead.created_at;
       }
@@ -230,7 +239,7 @@ async function generateReport(factoryId: string) {
     const summaryPrompt = topLeads
       .map(
         (l, i) =>
-          `--- Lead ${i + 1} (${l.phone}, ${l.tier.toUpperCase()}, ${l.userMessageCount} msgs, ${l.sessionCount} visits) ---\n${conversationTexts[i]}`
+          `--- Lead ${i + 1} (${l.name || l.phone}, ${l.phone}, ${l.tier.toUpperCase()}, ${l.userMessageCount} msgs, ${l.sessionCount} visits) ---\n${conversationTexts[i]}`
       )
       .join("\n\n");
 
@@ -276,6 +285,7 @@ Return ONLY the JSON object, no markdown fences.`,
   const resultLeads = scored.map((l) => ({
     id: l.leadId,
     phone: l.phone,
+    name: l.name,
     first_contact: l.firstContact,
     last_active: l.lastActiveAt,
     total_messages: l.totalMessages,

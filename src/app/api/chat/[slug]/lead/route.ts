@@ -44,10 +44,18 @@ export async function POST(
 
     if (existingLead) {
       leadId = existingLead.id;
+      await supabase
+        .from("leads")
+        .update({ name: parsed.data.name })
+        .eq("id", leadId);
     } else {
       const { data: newLead, error: leadErr } = await supabase
         .from("leads")
-        .insert({ factory_id: factory.id, phone: parsed.data.phone })
+        .insert({
+          factory_id: factory.id,
+          phone: parsed.data.phone,
+          name: parsed.data.name,
+        })
         .select()
         .single();
       if (leadErr) {

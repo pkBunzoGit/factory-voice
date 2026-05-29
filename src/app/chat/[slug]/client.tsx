@@ -21,6 +21,7 @@ export function ChatClient({ slug }: { slug: string }) {
   const [phase, setPhase] = useState<"loading" | "lead" | "chat" | "error">(
     "loading"
   );
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -52,20 +53,16 @@ export function ChatClient({ slug }: { slug: string }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function handlePhoneSubmit(e: React.FormEvent) {
+  async function handleLeadSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmittingPhone(true);
     setErrorMsg("");
 
     try {
-      const payload = phone.trim().startsWith("+")
-        ? phone.trim()
-        : `+260${phone.replace(/\D/g, "")}`;
-
       const res = await fetch(`/api/chat/${slug}/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: payload }),
+        body: JSON.stringify({ name: name.trim(), phone: phone.trim() }),
       });
 
       const data = await res.json();
@@ -248,12 +245,32 @@ export function ChatClient({ slug }: { slug: string }) {
             <div className="p-5 space-y-4">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-sm text-gray-700">
-                  Welcome! Please enter your WhatsApp number so{" "}
+                  Welcome! Enter your name and WhatsApp number so{" "}
                   {factory?.name} can follow up with your quotes.
                 </p>
               </div>
 
-              <form onSubmit={handlePhoneSubmit} className="space-y-3">
+              <form onSubmit={handleLeadSubmit} className="space-y-3">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="customer-name"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Your Name
+                  </label>
+                  <input
+                    id="customer-name"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="e.g. John Banda"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="block w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-900 placeholder:text-gray-400"
+                    required
+                    maxLength={100}
+                  />
+                </div>
+
                 <div className="space-y-1">
                   <label
                     htmlFor="whatsapp-number"
