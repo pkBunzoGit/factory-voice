@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOwnerFromCookie } from "@/lib/auth";
+import { regenerateBrain } from "@/lib/regenerate-brain";
 
 export async function GET() {
   try {
@@ -54,7 +55,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ combo: data });
+    const brain = await regenerateBrain(supabase, owner.factoryId);
+
+    return NextResponse.json({ combo: data, brain });
   } catch {
     return NextResponse.json({ error: "Failed to save combo" }, { status: 500 });
   }
@@ -84,7 +87,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    const brain = await regenerateBrain(supabase, owner.factoryId);
+
+    return NextResponse.json({ ok: true, brain });
   } catch {
     return NextResponse.json({ error: "Failed to delete combo" }, { status: 500 });
   }

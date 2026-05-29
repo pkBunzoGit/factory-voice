@@ -16,6 +16,9 @@ export const MODELS = {
   chat: "claude-haiku-4-5-20251001",
 } as const;
 
+/** Max output tokens when generating factories.system_prompt (sync API cap: 64k). */
+export const BRAIN_MAX_OUTPUT_TOKENS = 16384;
+
 export const CHAT_CONFIG = {
   maxTokens: 800,
   temperature: 0.4,

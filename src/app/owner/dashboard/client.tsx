@@ -7,6 +7,13 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TextArea } from "@/components/ui/textarea";
+import {
+  type BrainResponse,
+  brainStatusMessage,
+  formatBotUpdatedAt,
+  parseBrainResponse,
+  retryBrainUpdate,
+} from "@/lib/brain-ui";
 
 // Tab icon components
 function IconLeads({ className = "w-4 h-4" }: { className?: string }) {
@@ -111,6 +118,10 @@ export function OwnerDashboardClient({
   const [logoUploading, setLogoUploading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  const [botUpdatedAt, setBotUpdatedAt] = useState<string | null>(null);
+  const [profileBrainFailed, setProfileBrainFailed] = useState(false);
+  const [profileBrainRetrying, setProfileBrainRetrying] = useState(false);
+
   // Load leads + factory info on mount
   useEffect(() => {
     fetch("/api/owner/leads")
@@ -123,6 +134,8 @@ export function OwnerDashboardClient({
       .then((data) => {
         setFactoryInfo(data.factory || null);
         if (data.profiles) setProfiles(data.profiles);
+        if (data.bot_updated_at) setBotUpdatedAt(data.bot_updated_at);
+        else if (data.factory?.updated_at) setBotUpdatedAt(data.factory.updated_at);
         if (data.factory?.brand_colors) {
           setBrandColors({
             primary: data.factory.brand_colors.primary || "",
@@ -163,6 +176,8 @@ export function OwnerDashboardClient({
         .then((data) => {
           setProfiles(data.profiles || []);
           setFactoryInfo(data.factory || null);
+          if (data.bot_updated_at) setBotUpdatedAt(data.bot_updated_at);
+          else if (data.factory?.updated_at) setBotUpdatedAt(data.factory.updated_at);
           if (data.factory?.brand_colors) {
             setBrandColors({
               primary: data.factory.brand_colors.primary || "",
@@ -179,12 +194,15 @@ export function OwnerDashboardClient({
     setEditingSection(section.section);
     setEditData({ ...section.data });
     setSaveMsg("");
+    setProfileBrainFailed(false);
   }
 
   async function saveEdit() {
     if (!editingSection) return;
     setSaving(true);
     setSaveMsg("");
+
+    setProfileBrainFailed(false);
 
     try {
       const res = await fetch("/api/owner/profile", {
@@ -193,21 +211,48 @@ export function OwnerDashboardClient({
         body: JSON.stringify({ section: editingSection, data: editData }),
       });
 
+      const data = await res.json().catch(() => ({}));
+      const brain = parseBrainResponse(data.brain);
+
       if (res.ok) {
         setProfiles((prev) =>
           prev.map((p) =>
             p.section === editingSection ? { ...p, data: editData } : p
           )
         );
-        setEditingSection(null);
-        setSaveMsg("Saved! Bot profile updated.");
+        if (brain?.ok) {
+          setEditingSection(null);
+          setBotUpdatedAt(brain.updated_at);
+          setSaveMsg("Saved! Chat bot updated.");
+        } else {
+          setProfileBrainFailed(true);
+          setSaveMsg("Saved. Chat bot update failed — tap Retry.");
+        }
       } else {
-        setSaveMsg("Failed to save. Try again.");
+        setSaveMsg(data.error || "Failed to save. Try again.");
       }
     } catch {
       setSaveMsg("Network error.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function retryProfileBrain() {
+    setProfileBrainRetrying(true);
+    setSaveMsg("");
+    try {
+      const brain = await retryBrainUpdate();
+      if (brain?.ok) {
+        setProfileBrainFailed(false);
+        setEditingSection(null);
+        setBotUpdatedAt(brain.updated_at);
+        setSaveMsg("Chat bot updated.");
+      } else {
+        setSaveMsg(brain ? brainStatusMessage(brain) : "Retry failed.");
+      }
+    } finally {
+      setProfileBrainRetrying(false);
     }
   }
 
@@ -328,18 +373,23 @@ export function OwnerDashboardClient({
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
               {initials}
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-sm font-semibold text-gray-900">{factoryName}</h1>
               <p className="text-[11px] text-gray-500">Owner Dashboard</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            Logout
-          </Button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <p className="hidden sm:block text-[10px] text-gray-400">
+              Chat bot updated {formatBotUpdatedAt(botUpdatedAt)}
+            </p>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -650,7 +700,7 @@ export function OwnerDashboardClient({
                         }`}
                       >
                         <p className="text-xs font-medium mb-1 opacity-60">
-                          {m.role === "user" ? "Customer" : "AI Bot"}
+                          {m.role === "user" ? "Customer" : `${factoryName} Chat Assistant`}
                         </p>
                         <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ul]:ml-4 [&>ol]:my-1 [&>ol]:ml-4 [&_li]:my-0.5 [&_strong]:font-semibold [&_table]:w-full [&_table]:text-xs [&_table]:border-collapse [&_table]:my-2 [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium [&_th]:border [&_th]:border-gray-200 [&_td]:px-2 [&_td]:py-1 [&_td]:border [&_td]:border-gray-200 [&_hr]:my-2 [&_hr]:border-gray-200">
                           <ReactMarkdown
@@ -694,17 +744,20 @@ export function OwnerDashboardClient({
 
         {/* Products Tab */}
         {tab === "products" && (
-          <OwnerProductsTab factoryId={factoryId} />
+          <OwnerProductsTab
+            factoryId={factoryId}
+            onBotUpdated={setBotUpdatedAt}
+          />
         )}
 
         {/* Combos Tab */}
         {tab === "combos" && (
-          <OwnerCombosTab factoryId={factoryId} />
+          <OwnerCombosTab factoryId={factoryId} onBotUpdated={setBotUpdatedAt} />
         )}
 
         {/* Locations Tab */}
         {tab === "locations" && (
-          <OwnerLocationsTab factoryId={factoryId} />
+          <OwnerLocationsTab factoryId={factoryId} onBotUpdated={setBotUpdatedAt} />
         )}
 
         {/* Competitors Tab */}
@@ -856,7 +909,9 @@ export function OwnerDashboardClient({
                 No profile data found.
               </div>
             ) : (
-              profiles.map((p) => (
+              profiles
+                .filter((p) => !p.section.startsWith("_"))
+                .map((p) => (
                 <div
                   key={p.section}
                   className="bg-white rounded-xl border border-gray-200 overflow-hidden"
@@ -915,10 +970,19 @@ export function OwnerDashboardClient({
                           </Button>
                           <Button
                             size="sm"
-                            onClick={saveEdit}
-                            loading={saving}
+                            onClick={
+                              profileBrainFailed ? retryProfileBrain : saveEdit
+                            }
+                            loading={saving || profileBrainRetrying}
+                            className={
+                              profileBrainFailed ? "bg-red-600 hover:bg-red-700 text-white" : ""
+                            }
                           >
-                            Save & Update Bot
+                            {profileBrainRetrying
+                              ? "Retrying…"
+                              : profileBrainFailed
+                                ? "Retry"
+                                : "Save & Update Bot"}
                           </Button>
                         </div>
                       </>
@@ -1156,11 +1220,19 @@ const EMPTY_ROW: ProductRow = {
   image_url: "",
 };
 
-function OwnerProductsTab({ factoryId }: { factoryId: string }) {
+function OwnerProductsTab({
+  factoryId,
+  onBotUpdated,
+}: {
+  factoryId: string;
+  onBotUpdated?: (iso: string) => void;
+}) {
   const [rows, setRows] = useState<ProductRow[]>([{ ...EMPTY_ROW }]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [brainFailed, setBrainFailed] = useState(false);
+  const [retryingBrain, setRetryingBrain] = useState(false);
 
   useEffect(() => {
     fetch("/api/owner/products")
@@ -1191,6 +1263,7 @@ function OwnerProductsTab({ factoryId }: { factoryId: string }) {
       return updated;
     });
     setStatus("");
+    setBrainFailed(false);
   }
 
   function addRow() {
@@ -1259,9 +1332,32 @@ function OwnerProductsTab({ factoryId }: { factoryId: string }) {
     } catch {}
   }
 
+  async function retryBrain() {
+    setRetryingBrain(true);
+    setStatus("");
+    try {
+      const brain = await retryBrainUpdate();
+      if (brain?.ok) {
+        setBrainFailed(false);
+        onBotUpdated?.(brain.updated_at);
+        setStatus("Chat bot updated.");
+      } else {
+        setStatus(brain ? brainStatusMessage(brain) : "Retry failed.");
+      }
+    } finally {
+      setRetryingBrain(false);
+    }
+  }
+
   async function save() {
+    if (brainFailed) {
+      await retryBrain();
+      return;
+    }
+
     setSaving(true);
     setStatus("");
+    setBrainFailed(false);
     try {
       const validRows = rows
         .filter((r) => r.category.trim() && r.name.trim())
@@ -1276,22 +1372,26 @@ function OwnerProductsTab({ factoryId }: { factoryId: string }) {
           image_url: r.image_url || null,
         }));
 
+      setStatus("Saving products…");
       const res = await fetch("/api/owner/products", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ products: validRows }),
       });
 
+      const data = await res.json().catch(() => ({}));
+      const brain = parseBrainResponse(data.brain);
+
       if (res.ok) {
-        setStatus("Products saved! Regenerating bot...");
-        await fetch("/api/owner/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ section: "_trigger_regen", data: {} }),
-        });
-        setStatus("Products saved & bot updated!");
+        if (brain?.ok) {
+          onBotUpdated?.(brain.updated_at);
+          setStatus("Products saved. Chat bot updated.");
+        } else {
+          setBrainFailed(true);
+          setStatus("Products saved. Chat bot update failed — tap Retry.");
+        }
       } else {
-        setStatus("Failed to save products.");
+        setStatus(data.error || "Failed to save products.");
       }
     } catch {
       setStatus("Network error.");
@@ -1318,8 +1418,13 @@ function OwnerProductsTab({ factoryId }: { factoryId: string }) {
               {status}
             </span>
           )}
-          <Button size="sm" onClick={save} loading={saving}>
-            Save & Update Bot
+          <Button
+            size="sm"
+            onClick={save}
+            loading={saving || retryingBrain}
+            className={brainFailed ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+          >
+            {retryingBrain ? "Retrying…" : brainFailed ? "Retry" : "Save & Update Bot"}
           </Button>
         </div>
       </div>
@@ -1484,11 +1589,19 @@ const EMPTY_LOCATION: LocationRow = {
   location_type: "distributor",
 };
 
-function OwnerLocationsTab({ factoryId }: { factoryId: string }) {
+function OwnerLocationsTab({
+  factoryId,
+  onBotUpdated,
+}: {
+  factoryId: string;
+  onBotUpdated?: (iso: string) => void;
+}) {
   const [rows, setRows] = useState<LocationRow[]>([{ ...EMPTY_LOCATION }]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [brainFailed, setBrainFailed] = useState(false);
+  const [retryingBrain, setRetryingBrain] = useState(false);
 
   useEffect(() => {
     fetch("/api/owner/locations")
@@ -1516,6 +1629,7 @@ function OwnerLocationsTab({ factoryId }: { factoryId: string }) {
       return updated;
     });
     setStatus("");
+    setBrainFailed(false);
   }
 
   function addRow() {
@@ -1526,9 +1640,32 @@ function OwnerLocationsTab({ factoryId }: { factoryId: string }) {
     setRows((prev) => (prev.length <= 1 ? [{ ...EMPTY_LOCATION }] : prev.filter((_, i) => i !== index)));
   }
 
+  async function retryBrain() {
+    setRetryingBrain(true);
+    setStatus("");
+    try {
+      const brain = await retryBrainUpdate();
+      if (brain?.ok) {
+        setBrainFailed(false);
+        onBotUpdated?.(brain.updated_at);
+        setStatus("Chat bot updated.");
+      } else {
+        setStatus(brain ? brainStatusMessage(brain) : "Retry failed.");
+      }
+    } finally {
+      setRetryingBrain(false);
+    }
+  }
+
   async function save() {
+    if (brainFailed) {
+      await retryBrain();
+      return;
+    }
+
     setSaving(true);
     setStatus("");
+    setBrainFailed(false);
     try {
       const validRows = rows
         .filter((r) => r.name.trim() && r.city.trim())
@@ -1540,22 +1677,26 @@ function OwnerLocationsTab({ factoryId }: { factoryId: string }) {
           location_type: r.location_type || "distributor",
         }));
 
+      setStatus("Saving locations…");
       const res = await fetch("/api/owner/locations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locations: validRows }),
       });
 
+      const data = await res.json().catch(() => ({}));
+      const brain = parseBrainResponse(data.brain);
+
       if (res.ok) {
-        setStatus("Locations saved! Regenerating bot...");
-        await fetch("/api/owner/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ section: "_trigger_regen", data: {} }),
-        });
-        setStatus("Locations saved & bot updated!");
+        if (brain?.ok) {
+          onBotUpdated?.(brain.updated_at);
+          setStatus("Locations saved. Chat bot updated.");
+        } else {
+          setBrainFailed(true);
+          setStatus("Locations saved. Chat bot update failed — tap Retry.");
+        }
       } else {
-        setStatus("Failed to save locations.");
+        setStatus(data.error || "Failed to save locations.");
       }
     } catch {
       setStatus("Network error.");
@@ -1582,8 +1723,13 @@ function OwnerLocationsTab({ factoryId }: { factoryId: string }) {
               {status}
             </span>
           )}
-          <Button size="sm" onClick={save} loading={saving}>
-            Save & Update Bot
+          <Button
+            size="sm"
+            onClick={save}
+            loading={saving || retryingBrain}
+            className={brainFailed ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+          >
+            {retryingBrain ? "Retrying…" : brainFailed ? "Retry" : "Save & Update Bot"}
           </Button>
         </div>
       </div>
@@ -2064,7 +2210,13 @@ interface OwnerComboData {
   image_url: string;
 }
 
-function OwnerCombosTab({ factoryId }: { factoryId: string }) {
+function OwnerCombosTab({
+  factoryId,
+  onBotUpdated,
+}: {
+  factoryId: string;
+  onBotUpdated?: (iso: string) => void;
+}) {
   const [combos, setCombos] = useState<OwnerComboData[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -2072,6 +2224,9 @@ function OwnerCombosTab({ factoryId }: { factoryId: string }) {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [status, setStatus] = useState("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [brainFailedIndex, setBrainFailedIndex] = useState<number | null>(null);
+  const [pendingBrainRetry, setPendingBrainRetry] = useState(false);
+  const [retryingBrain, setRetryingBrain] = useState(false);
 
   useEffect(() => {
     fetch("/api/owner/combos")
@@ -2164,16 +2319,50 @@ function OwnerCombosTab({ factoryId }: { factoryId: string }) {
     e.target.value = "";
   }
 
+  async function retryComboBrain(index?: number) {
+    setRetryingBrain(true);
+    setStatus("");
+    try {
+      const brain = await retryBrainUpdate();
+      if (brain?.ok) {
+        setBrainFailedIndex(null);
+        setPendingBrainRetry(false);
+        if (index != null) setEditingIndex(null);
+        onBotUpdated?.(brain.updated_at);
+        setStatus("Chat bot updated.");
+      } else {
+        setStatus(brain ? brainStatusMessage(brain) : "Retry failed.");
+      }
+    } finally {
+      setRetryingBrain(false);
+      setSavingId(null);
+    }
+  }
+
   async function saveCombo(index: number) {
+    if (brainFailedIndex === index) {
+      setSavingId(index);
+      await retryComboBrain(index);
+      return;
+    }
+
     const combo = combos[index];
     setSavingId(index);
     setStatus("");
+    setBrainFailedIndex(null);
 
     try {
       if (combo.id) {
-        await fetch(`/api/owner/combos?combo_id=${combo.id}`, { method: "DELETE" });
+        const delRes = await fetch(`/api/owner/combos?combo_id=${combo.id}`, {
+          method: "DELETE",
+        });
+        if (!delRes.ok) {
+          setStatus("Failed to update combo");
+          return;
+        }
       }
 
+      setStatus("Saving combo…");
       const res = await fetch("/api/owner/combos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2186,17 +2375,26 @@ function OwnerCombosTab({ factoryId }: { factoryId: string }) {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+      const brain = parseBrainResponse(data.brain);
+
       if (res.ok) {
-        const { combo: saved } = await res.json();
+        const { combo: saved } = data;
         setCombos((prev) => {
           const updated = [...prev];
           updated[index] = { ...updated[index], id: saved.id };
           return updated;
         });
-        setEditingIndex(null);
-        setStatus("Combo saved!");
+        if (brain?.ok) {
+          setEditingIndex(null);
+          onBotUpdated?.(brain.updated_at);
+          setStatus("Combo saved. Chat bot updated.");
+        } else {
+          setBrainFailedIndex(index);
+          setStatus("Combo saved. Chat bot update failed — tap Retry.");
+        }
       } else {
-        setStatus("Failed to save combo");
+        setStatus(data.error || "Failed to save combo");
       }
     } catch {
       setStatus("Failed to save combo");
@@ -2207,11 +2405,38 @@ function OwnerCombosTab({ factoryId }: { factoryId: string }) {
 
   async function deleteCombo(index: number) {
     const combo = combos[index];
-    if (combo.id) {
-      await fetch(`/api/owner/combos?combo_id=${combo.id}`, { method: "DELETE" });
+    if (!combo.id) {
+      setCombos((prev) => prev.filter((_, i) => i !== index));
+      if (editingIndex === index) setEditingIndex(null);
+      return;
     }
-    setCombos((prev) => prev.filter((_, i) => i !== index));
-    if (editingIndex === index) setEditingIndex(null);
+
+    setSavingId(index);
+    setStatus("");
+    try {
+      const res = await fetch(`/api/owner/combos?combo_id=${combo.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      const brain = parseBrainResponse(data.brain);
+      if (res.ok) {
+        setCombos((prev) => prev.filter((_, i) => i !== index));
+        if (editingIndex === index) setEditingIndex(null);
+        if (brain?.ok) {
+          onBotUpdated?.(brain.updated_at);
+          setStatus("Combo removed. Chat bot updated.");
+        } else {
+          setPendingBrainRetry(true);
+          setStatus("Combo removed. Chat bot update failed — tap Retry.");
+        }
+      } else {
+        setStatus("Failed to delete combo");
+      }
+    } catch {
+      setStatus("Failed to delete combo");
+    } finally {
+      setSavingId(null);
+    }
   }
 
   function updateField(index: number, field: string, value: string) {
@@ -2336,6 +2561,16 @@ function OwnerCombosTab({ factoryId }: { factoryId: string }) {
             <span className={`text-xs ${status.includes("fail") || status.includes("Fail") ? "text-red-600" : "text-green-600"}`}>
               {status}
             </span>
+          )}
+          {pendingBrainRetry && (
+            <Button
+              size="sm"
+              onClick={() => retryComboBrain()}
+              loading={retryingBrain}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {retryingBrain ? "Retrying…" : "Retry"}
+            </Button>
           )}
           <label className="cursor-pointer">
             <span className="inline-flex items-center px-3 py-1.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800">
@@ -2513,8 +2748,17 @@ function OwnerCombosTab({ factoryId }: { factoryId: string }) {
                 </Button>
                 <div className="flex-1" />
                 <Input placeholder="Grand Total" type="number" value={combo.grand_total} onChange={(e) => updateField(ci, "grand_total", e.target.value)} className="w-28" />
-                <Button size="sm" onClick={() => saveCombo(ci)} loading={savingId === ci}>
-                  Confirm & Save
+                <Button
+                  size="sm"
+                  onClick={() => saveCombo(ci)}
+                  loading={(savingId === ci && !retryingBrain) || (retryingBrain && (brainFailedIndex === ci || pendingBrainRetry))}
+                  className={brainFailedIndex === ci ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+                >
+                  {retryingBrain && brainFailedIndex === ci
+                    ? "Retrying…"
+                    : brainFailedIndex === ci
+                      ? "Retry"
+                      : "Save & Update Bot"}
                 </Button>
               </div>
             )}

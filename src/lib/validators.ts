@@ -71,13 +71,39 @@ export const profileSections = [
   { key: "contact_info", label: "Contact Info", schema: contactInfoSchema },
 ] as const;
 
-// --- Lead Capture ---
+// --- Lead Capture (Zambia / +260) ---
+/** Normalize to E.164 +260XXXXXXXXX (9 digits after country code). */
+export function normalizeZambiaPhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+
+  let national: string;
+
+  if (digits.startsWith("260")) {
+    national = digits.slice(3);
+  } else if (digits.startsWith("0") && digits.length === 10) {
+    national = digits.slice(1);
+  } else {
+    national = digits;
+  }
+
+  if (national.length === 9) {
+    return `+260${national}`;
+  }
+
+  return null;
+}
+
 export const leadCaptureSchema = z.object({
   phone: z
     .string()
-    .min(10, "Enter a valid phone number")
-    .max(15)
-    .regex(/^\+?\d+$/, "Enter digits only"),
+    .trim()
+    .min(1, "Enter your WhatsApp number")
+    .refine((val) => normalizeZambiaPhone(val) !== null, {
+      message:
+        "Enter a valid Zambian number: 9 digits (e.g. 971234567) or 10 with leading 0 (e.g. 0971234567)",
+    })
+    .transform((val) => normalizeZambiaPhone(val)!),
 });
 
 // --- Chat Message ---

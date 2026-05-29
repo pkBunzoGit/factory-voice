@@ -77,7 +77,13 @@ export async function POST(
       model: MODELS.chat,
       max_tokens: CHAT_CONFIG.maxTokens,
       temperature: CHAT_CONFIG.temperature,
-      system: factory.system_prompt + CHAT_STYLE_RULES,
+      system: [
+        {
+          type: "text" as const,
+          text: factory.system_prompt + CHAT_STYLE_RULES,
+          cache_control: { type: "ephemeral" as const },
+        },
+      ],
       messages,
     });
 

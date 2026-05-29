@@ -125,7 +125,7 @@ export function ContactInfoForm({ data, onChange }: SectionProps) {
       />
       <Input
         label="WhatsApp Number"
-        placeholder="+91 98765 43210"
+        placeholder="+260 971234567"
         value={data.whatsapp_number || ""}
         onChange={(e) => onChange("whatsapp_number", e.target.value)}
         required

@@ -58,10 +58,14 @@ export function ChatClient({ slug }: { slug: string }) {
     setErrorMsg("");
 
     try {
+      const payload = phone.trim().startsWith("+")
+        ? phone.trim()
+        : `+260${phone.replace(/\D/g, "")}`;
+
       const res = await fetch(`/api/chat/${slug}/lead`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: payload }),
       });
 
       const data = await res.json();
@@ -250,14 +254,37 @@ export function ChatClient({ slug }: { slug: string }) {
               </div>
 
               <form onSubmit={handlePhoneSubmit} className="space-y-3">
-                <Input
-                  label="Your WhatsApp Number"
-                  placeholder="+91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  type="tel"
-                  required
-                />
+                <div className="space-y-1">
+                  <label
+                    htmlFor="whatsapp-number"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Your WhatsApp Number
+                  </label>
+                  <div className="flex rounded-lg border border-gray-300 overflow-hidden focus-within:ring-2 focus-within:ring-offset-1 focus-within:ring-gray-900">
+                    <span className="inline-flex items-center px-3 py-2.5 bg-gray-50 border-r border-gray-300 text-sm font-medium text-gray-700 shrink-0">
+                      +260
+                    </span>
+                    <input
+                      id="whatsapp-number"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      placeholder="971234567"
+                      value={phone}
+                      onChange={(e) =>
+                        setPhone(
+                          e.target.value.replace(/\D/g, "").slice(0, 10)
+                        )
+                      }
+                      className="block w-full px-3 py-2.5 text-sm focus:outline-none placeholder:text-gray-400"
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    9 digits (e.g. 971234567) or 10 with leading 0 (e.g. 0971234567)
+                  </p>
+                </div>
 
                 {errorMsg && (
                   <p className="text-xs text-red-600">{errorMsg}</p>

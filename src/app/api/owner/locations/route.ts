@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getOwnerFromCookie } from "@/lib/auth";
+import { regenerateBrain } from "@/lib/regenerate-brain";
 
 export async function GET() {
   try {
@@ -62,7 +63,9 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true });
+    const brain = await regenerateBrain(supabase, factoryId);
+
+    return NextResponse.json({ ok: true, brain });
   } catch {
     return NextResponse.json({ error: "Failed to save locations" }, { status: 500 });
   }
